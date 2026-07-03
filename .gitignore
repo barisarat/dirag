@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtualenv / uv
+.venv/
+venv/
+
+# Secrets and local config
+.env
+corpora.local.toml
+
+# Runtime data (indexes, caches)
+data/
+*.sqlite3
+.fastembed_cache/
+
+# Build artifacts
+dist/
+build/
+
+# Keep uv.lock committed (do NOT ignore it)
