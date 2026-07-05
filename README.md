@@ -53,6 +53,11 @@ from the environment:
 
 Embeddings are always computed locally, whichever model answers.
 
+The `path` is any folder of PDFs, scanned recursively. To use an existing
+Zotero library, point it at the storage folder (`~/Zotero/storage`); attachments
+are indexed in place and each citation uses the PDF's file name. If you use
+Zotero linked-file attachments, point `path` at that base directory instead.
+
 Optional host tools: `ocrmypdf` + `tesseract` enable the OCR fallback for
 scanned PDFs without a text layer.
 
@@ -79,6 +84,19 @@ files removed from disk have their chunks swept, and a re-run with no changes
 is a near-instant no-op. A scanned PDF with no text layer is OCR'd if
 `ocrmypdf` is present, otherwise reported as `no_text` (never silently
 dropped).
+
+Embedding is CPU-only and single-threaded by default, so a large library takes
+a while - a thousand PDFs can run for several hours on one core. On a multi-core
+box, parallelize with `ASK_EMBED_THREADS` (and a larger `ASK_EMBED_BATCH` to
+feed it):
+
+```bash
+ASK_EMBED_THREADS=12 ASK_EMBED_BATCH=512 ask index
+```
+
+bge-small is a small model, so the speedup tapers off past a handful of threads;
+leave a few cores for the rest of the machine. Indexing is incremental, so a
+run interrupted partway is safely resumed by re-running.
 
 ## Building the index on another machine
 

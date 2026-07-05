@@ -21,7 +21,9 @@
 default = "library"
 
 [library]
-path = "~/vault/library"
+# `path` is any folder of PDFs, scanned recursively - e.g. "~/Zotero/storage"
+# to index an existing Zotero library's attachments in place.
+path = "~/Zotero/storage"
 retriever = "vector"
 model = "openai:gpt-5-nano"   # EDIT to the exact model id your key serves.
 
