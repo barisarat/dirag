@@ -1,5 +1,5 @@
 [project]
-name = "ragshelf"
+name = "ask-pdf"
 version = "0.1.0"
 description = "Local CLI for grounded, page-cited question-answering over folders of PDFs."
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ dependencies = [
 ask = "ask.cli:app"
 
 [project.urls]
-Repository = "https://github.com/barisarat/ragshelf"
+Repository = "https://github.com/barisarat/ask-pdf"
 
 [dependency-groups]
 dev = [

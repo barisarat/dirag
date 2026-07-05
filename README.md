@@ -1,4 +1,4 @@
-# ragshelf
+# ask-pdf
 
 A small local CLI (the command is `ask`) that answers questions over folders of
 PDFs (mine holds my technical book library), with page-cited answers. Personal
