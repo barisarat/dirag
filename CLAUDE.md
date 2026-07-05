@@ -42,8 +42,13 @@ override.
 - Judge loops are bounded and fail OPEN: a flaky judge never blocks an answer.
 - Indexing is idempotent (hash-diffed) and self-healing (orphan sweep); any
   re-run converges. Never silently drop a file - report skips.
-- Plain ASCII everywhere (copy, comments, docs): no em/en dashes, no curly
-  quotes, no ellipsis characters. Use - and ... instead.
+- Plain ASCII everywhere - every character in every tracked file (docs, README,
+  code, comments, docstrings, string literals, config, tests): no em/en dashes,
+  no curly quotes, no ellipsis characters. Use - and ... instead. Verify before
+  committing with:
+      grep -rnP '[^\x00-\x7F]' --include='*.py' --include='*.md' --include='*.toml' .
+  It must return nothing (the only exception is genuine non-Latin legal text,
+  which this repo has none of).
 - Docs and comments describe the system as it is; they do not argue design
   alternatives.
 

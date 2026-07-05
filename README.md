@@ -53,6 +53,47 @@ from the environment:
 
 Embeddings are always computed locally, whichever model answers.
 
+### Setting the API key
+
+An `openai:` corpus needs `OPENAI_API_KEY`. Instead of exporting it every
+session, put it in a `.env` file once - the CLI reads it at startup. This is the
+same on Linux, macOS, and Windows (it replaces the shell-specific `export` /
+`$env:` step). A `local:` (Ollama) corpus needs no key and can skip this.
+
+1. Create the file. The global location is read from any directory:
+
+   ```bash
+   mkdir -p ~/.config/ask
+   nano ~/.config/ask/.env
+   ```
+
+2. Add the key (and optionally a compatible endpoint), then save:
+
+   ```bash
+   OPENAI_API_KEY=sk-...
+   # OPENAI_BASE_URL=...   # optional: Groq/OpenRouter/other compatible endpoint
+   ```
+
+3. Restrict the file, since it holds a secret:
+
+   ```bash
+   chmod 600 ~/.config/ask/.env
+   ```
+
+4. Verify it is picked up (the model should no longer show `OPENAI_API_KEY not
+   set`):
+
+   ```bash
+   uv run ask config
+   ```
+
+The file is looked for at `$ASK_ENV`, then `./.env`, then `~/.config/ask/.env`
+(first value per key wins). A repo-local `./.env` works the same way. An explicit
+`export OPENAI_API_KEY=...` still overrides the file, so clear a stale one (or
+open a fresh shell) if `ask config` shows the wrong key.
+
+### Corpus path
+
 The `path` is any folder of PDFs, scanned recursively. To use an existing
 Zotero library, point it at the storage folder (`~/Zotero/storage`); attachments
 are indexed in place and each citation uses the PDF's file name. If you use

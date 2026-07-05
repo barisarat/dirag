@@ -23,7 +23,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from . import __version__, answer as answer_mod, config as config_mod, grounding, llm
+from . import __version__, answer as answer_mod, config as config_mod, env, grounding, llm
 
 cli = typer.Typer(
     add_completion=False,
@@ -44,6 +44,9 @@ def app():
     the explicit form (`ask q "config"`). The rewrite happens on argv, before
     any parsing.
     """
+    # Autoload .env (credentials/endpoints only) before any command dispatches;
+    # an explicit `export` in the environment still wins over the file.
+    env.load_env_files()
     argv = sys.argv[1:]
     if argv and argv[0] not in _COMMANDS and not argv[0].startswith("-"):
         sys.argv = [sys.argv[0], "q", *argv]

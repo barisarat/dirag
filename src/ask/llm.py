@@ -109,8 +109,8 @@ def resolve_llm_config(provider, model, override=None):
         if not api_key:
             raise LLMSetupError(
                 f"This corpus is configured for 'openai:{model}' but OPENAI_API_KEY is "
-                "not set. Export the key, or configure a local model instead "
-                "(e.g. model = \"local:qwen2.5:3b\")."
+                "not set. Put it in a .env file (OPENAI_API_KEY=sk-...) or export it, "
+                "or configure a local model instead (e.g. model = \"local:qwen2.5:3b\")."
             )
         return LLMConfig(
             provider="openai",
