@@ -23,9 +23,9 @@ default = "library"
 [library]
 # `path` is any folder of PDFs, scanned recursively - e.g. "~/Zotero/storage"
 # to index an existing Zotero library's attachments in place.
-path = "~/Zotero/storage"
+path = "/home/baris/zotero-replica/storage"
 retriever = "vector"
-model = "openai:gpt-5-nano"   # EDIT to the exact model id your key serves.
+model = "local:qwen2.5:14b-instruct-q4_K_M"
 
 # A corpus answered entirely on your machine (requires Ollama + a pulled model):
 #
