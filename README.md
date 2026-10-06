@@ -1,4 +1,4 @@
-# dirag
+# diRAG
 
 Search a folder of PDF books, read the page each result comes from, and get
 answers quoted from the books.
