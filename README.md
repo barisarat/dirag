@@ -1,169 +1,176 @@
-# ask-pdf
+# dirag
 
-A small local CLI (the command is `ask`) that answers questions over folders of
-PDFs (mine holds my technical book library), with page-cited answers. Personal
-tool, shared as-is, no support. MIT.
+Search a folder of PDF books, read the page each result comes from, and get
+answers quoted from the books.
+
+dirag indexes a library of PDFs once, then answers a query with ranked passages:
+book, chapter, page and a snippet. Each result opens the rendered page with the
+passage marked on it, or the whole book in the built-in reader at that page.
+
+- Passages carry their chapter, taken from each PDF's table of contents.
+- Three retrieval modes: lexical (BM25), semantic (embeddings), and hybrid
+  (both, fused by rank). An optional rerank reads query and passage together:
+  neural (a local cross-encoder) or an LLM.
+- Results are capped per book, so one long series does not fill the list.
+- The AI answer quotes the books: a language model picks the passages and the
+  words, dirag checks every quote against the text and shows it in the book's
+  own words, marked on its page.
+- The reader remembers the page you stopped on in every book.
+- Everything runs locally. No account, no network after the first downloads.
+
+## Start
+
+```sh
+uvx dirag
+```
+
+That needs only [uv](https://docs.astral.sh/uv/). The browser opens on the app:
+choose the library folder (the folder button at the top of the shelf) and press
+**Index new**. Subfolders are included.
+
+dirag uses two things when they are there, with nothing to set:
+
+| When present | Gives |
+|---|---|
+| An NVIDIA GPU | indexing in minutes per hundred books instead of hours; a faster neural rerank |
+| [Ollama](https://ollama.com), running | the LLM rerank and the AI answer; dirag pulls `qwen2.5:7b-instruct` through it on the first start |
+
+Without them, search, the neural rerank and the reader work as usual; the AI
+button and the LLM rerank are hidden. The terminal shows what was found:
 
 ```text
-$ ask "how does the book motivate log compaction?"
-+- answer ---------------------------------------------------------------+
-| Log compaction keeps the latest value per key ... [1] ... segments are |
-| rewritten in the background ... [2]                                    |
-+------------------------------------------------------------------------+
-sources
- 1  designing-data-intensive-applications   page 456   "...compaction means..."
- 2  designing-data-intensive-applications   page 458   "...merged segments..."
+dirag on http://127.0.0.1:8008
+  GPU   NVIDIA GeForce RTX 3060
+  AI    qwen2.5:7b-instruct via Ollama
 ```
 
-How it works: PDFs are parsed (PyMuPDF), chunked into page-anchored passages,
-embedded locally (fastembed, bge-small-en-v1.5), and stored in one sqlite file
-(sqlite-vec, exact brute-force KNN). A question is embedded, top passages are
-retrieved and ranked, and the configured model drafts an answer that cites its
-sources by page. A bounded verification pass checks the draft against the
-cited passages and fails open (a flaky judge never blocks an answer).
+The first start downloads the packages (about 2.5 GB on Linux and Windows,
+GPU libraries included), the embedding and rerank models (about 250 MB) and,
+with Ollama, the language model (about 4.7 GB). To keep dirag installed rather
+than run it through uvx: `uv tool install dirag`, then `dirag`.
 
-## Setup
+## Indexing
 
-```bash
-uv sync
-# copy corpora.toml somewhere the tool finds it and edit the paths:
-#   $ASK_CORPORA > ./corpora.toml > ~/.config/ask/corpora.toml
+Indexing is long by design: every page is parsed and every passage embedded.
+The library view shows progress, a time estimate and a stop button. Stopping
+keeps every finished book, and the next run continues from there. Search works
+on the finished books while a run is going. **Index new** adds new and changed
+PDFs and drops deleted ones; **Reindex all** parses and embeds everything again.
+
+## Search
+
+| Key | Does |
+|---|---|
+| typing | lists quick exact-word matches under the box; pick one (click, or arrows and Enter) to open its page |
+| Enter, or the search button | searches with the chosen mode and rerank |
+| Ctrl+Enter, or the AI button | answers from the books (see below) |
+
+The mode and rerank sit beside the search box:
+
+| Mode | Finds |
+|---|---|
+| Hybrid | both of the below, fused by rank (the default) |
+| Lexical | the exact words |
+| Semantic | passages close in meaning, without the words |
+
+| Rerank | Does |
+|---|---|
+| No rerank | keeps the retrieval order |
+| Neural | scores the top 30 with a local cross-encoder; about a second on a CPU |
+| LLM | asks the language model to order the top 20 and leave out the ones that do not help; those stay in the list, faded |
+
+The line under the search box names what produced the results, with the count
+and the time. While a search runs, the current results fade under a moving bar.
+
+## Answer
+
+Ctrl+Enter or the AI button runs the search, then asks the model which passages
+answer the question and which words to quote from each. Only what the model
+chose is shown, as one card marked with the AI icon:
+
+- its response, one to three sentences citing the quotes by number; citations
+  to anything not quoted are removed, and a response left with none is dropped;
+- the quotes, as quotations in the books' own words, each with its source: the
+  source opens the reader scrolled to the quote, marked on the page, and the
+  page icon shows the page image in place.
+
+Every quote is matched against its passage before it is shown; a quote that is
+not in the text is dropped. When no passage answers the question, the answer
+says so. The response is the model's reading, not the books; the quotes and
+their pages are what to check.
+
+## Terminal
+
+```sh
+dirag --port 9000 --no-browser   # serve on another port, without opening the browser
+dirag index --library ~/Books    # choose the folder (remembered) and index it
+dirag index                      # index new and changed PDFs, drop deleted ones
+dirag index --reindex            # parse and embed every PDF again
+dirag index --rechunk            # rebuild passages and vectors from cached pages
+dirag find "martingale" --mode semantic --rerank neural   # passages
+dirag where "instrumental variables"                      # chapters
+dirag toc book.pdf               # the chapter map dirag reads from one PDF
 ```
 
-A corpus is a folder of PDFs plus the model that answers over it:
+Ctrl-C stops an index run the same way the stop button does; press it twice to
+stop at once.
 
-```toml
-default = "library"
+## Settings
 
-[library]
-path = "~/vault/library"
-retriever = "vector"
-model = "openai:gpt-5-nano"     # or "local:qwen2.5:3b" for Ollama
+All optional.
+
+| Variable | Default | Sets |
+|---|---|---|
+| `DIRAG_HOME` | `~/.local/share/dirag` | indexes (one per library folder), models, the job record |
+| `DIRAG_STATE` | `DIRAG_HOME` | `config.json`, `positions.json`, `bookmarks.json`, `cards.json` |
+| `DIRAG_LIBRARY` | chosen in the app | fixes the library folder; the app then cannot change it |
+| `DIRAG_BROWSE_ROOT` | the home directory | where the folder picker may browse |
+| `DIRAG_LLM_MODEL` | `qwen2.5:7b-instruct` | the Ollama model |
+| `DIRAG_LLM_URL` | `http://127.0.0.1:11434` | the Ollama server, which can be another machine |
+| `DIRAG_RERANK_MODEL` | `Xenova/ms-marco-MiniLM-L-12-v2` | the cross-encoder; `BAAI/bge-reranker-base` is larger and slower |
+| `DIRAG_DEVICE` | detected | `cpu` keeps the local models off the GPU |
+
+Books are stored by their path inside the library, so the folder can move as
+long as its contents keep their relative paths; a moved folder gets a new index
+unless its index file is renamed to match.
+
+`cards.json` overrides how a book is shown on the shelf. Keys are paths relative
+to the library:
+
+```json
+{"statistics/all-of-statistics.pdf": {"title": "All of Statistics", "subtitle": "A Concise Course",
+  "authors": ["Larry Wasserman"], "year": 2004, "pages": 442}}
 ```
 
-The `model` reference is the only routing input - the provider is never chosen
-from the environment:
+## Running as a service
 
-- `openai:<model-id>` - an OpenAI-compatible cloud model. Requires
-  `OPENAI_API_KEY` (a missing key is a hard error, not a silent fallback).
-  Set `OPENAI_BASE_URL` for Groq/OpenRouter/other compatible endpoints.
-- `local:<ollama-tag>` - a model served by your local Ollama. This path never
-  reads the API key, so a corpus configured local stays on your machine even
-  with keys exported. Ollama is only needed if you use a `local:` model.
+Install it with `uv tool install dirag`, then a systemd unit:
 
-Embeddings are always computed locally, whichever model answers.
+```ini
+[Unit]
+Description=dirag
+After=network-online.target
 
-### Setting the API key
+[Service]
+ExecStart=%h/.local/bin/dirag --no-browser
+Restart=on-failure
 
-An `openai:` corpus needs `OPENAI_API_KEY`. Instead of exporting it every
-session, put it in a `.env` file once - the CLI reads it at startup. This is the
-same on Linux, macOS, and Windows (it replaces the shell-specific `export` /
-`$env:` step). A `local:` (Ollama) corpus needs no key and can skip this.
-
-1. Create the file. The global location is read from any directory:
-
-   ```bash
-   mkdir -p ~/.config/ask
-   nano ~/.config/ask/.env
-   ```
-
-2. Add the key (and optionally a compatible endpoint), then save:
-
-   ```bash
-   OPENAI_API_KEY=sk-...
-   # OPENAI_BASE_URL=...   # optional: Groq/OpenRouter/other compatible endpoint
-   ```
-
-3. Restrict the file, since it holds a secret:
-
-   ```bash
-   chmod 600 ~/.config/ask/.env
-   ```
-
-4. Verify it is picked up (the model should no longer show `OPENAI_API_KEY not
-   set`):
-
-   ```bash
-   uv run ask config
-   ```
-
-The file is looked for at `$ASK_ENV`, then `./.env`, then `~/.config/ask/.env`
-(first value per key wins). A repo-local `./.env` works the same way. An explicit
-`export OPENAI_API_KEY=...` still overrides the file, so clear a stale one (or
-open a fresh shell) if `ask config` shows the wrong key.
-
-### Corpus path
-
-The `path` is any folder of PDFs, scanned recursively. To use an existing
-Zotero library, point it at the storage folder (`~/Zotero/storage`); attachments
-are indexed in place and each citation uses the PDF's file name. If you use
-Zotero linked-file attachments, point `path` at that base directory instead.
-
-Optional host tools: `ocrmypdf` + `tesseract` enable the OCR fallback for
-scanned PDFs without a text layer.
-
-## Use
-
-```bash
-ask "how are backups pruned?"     # answer over the default corpus
-ask q "..." --corpus papers       # explicit corpus (or: -c papers)
-ask index                         # build/refresh the index (incremental)
-ask status                        # files indexed, chunks, last index, skips
-ask config                        # resolved corpora (keys redacted)
+[Install]
+WantedBy=default.target
 ```
 
-Flags: `--k` result count, `--model provider:model` per-call override,
-`--json` machine output, `--config` an explicit config path. In the shorthand
-form the question comes first (`ask "..." --json`); a question that collides
-with a command name needs the explicit form (`ask q "config"`).
+As a user unit (`~/.config/systemd/user/dirag.service`, then
+`systemctl --user enable --now dirag`). Stopping the service stops a running
+index job the same way the stop button does.
 
-## Adding books
+## Security
 
-Drop PDFs into the corpus path, then `ask index`. Indexing is incremental
-(hash-diffed) and self-healing: only new or changed files are re-embedded,
-files removed from disk have their chunks swept, and a re-run with no changes
-is a near-instant no-op. A scanned PDF with no text layer is OCR'd if
-`ocrmypdf` is present, otherwise reported as `no_text` (never silently
-dropped).
+The server binds 127.0.0.1 and has no login. Anyone who can reach the port can
+read every book in the library, choose another folder under the browse root and
+start indexing. Bind another address (`--host`) only on a network where every
+device is trusted, and set `DIRAG_LIBRARY` to fix the folder.
 
-Embedding is CPU-only and single-threaded by default, so a large library takes
-a while - a thousand PDFs can run for several hours on one core. On a multi-core
-box, parallelize with `ASK_EMBED_THREADS` (and a larger `ASK_EMBED_BATCH` to
-feed it):
+## License
 
-```bash
-ASK_EMBED_THREADS=12 ASK_EMBED_BATCH=512 ask index
-```
-
-bge-small is a small model, so the speedup tapers off past a handful of threads;
-leave a few cores for the rest of the machine. Indexing is incremental, so a
-run interrupted partway is safely resumed by re-running.
-
-## Building the index on another machine
-
-Embedding a large book is memory-heavy (the model needs a few hundred MB). On
-a small/low-RAM box the indexer can be OOM-killed mid-embed (exit 137). The
-index is a single portable file, so build it where there is RAM and copy it
-back:
-
-1. On a high-RAM machine: clone the project, `uv sync`, put the same PDFs
-   under the same corpus path, run `ask index`.
-2. Copy `data/<corpus>.sqlite3` to the small machine's `data/` (the file is
-   self-contained - the WAL is checkpointed on close).
-3. On the small machine just query; a single-question embed is light. Keep the
-   PDFs at the same path on both machines so a later `ask index` there is a
-   no-op instead of sweeping the copied entries.
-
-Knobs for a tight box: `ASK_EMBED_BATCH=16 ASK_EMBED_THREADS=1`.
-
-## Notes
-
-- Corpora and routing live in `corpora.toml`; a corpus is always resolved
-  explicitly (named, or the configured default) - there is no auto-detection.
-- The index lives at `data/<corpus>.sqlite3` (gitignored); override the
-  directory with `ASK_DATA_DIR`.
-- The embedding dimension is baked into the store, so changing the embedding
-  model means re-indexing.
-- `ASK_REASONING_EFFORT` - default `minimal` for gpt-5-family models; set
-  empty for a model that rejects the parameter.
-- `ASK_DEBUG=1` - show the (normally silent) fail-open judge diagnostics.
+MIT. pdf.js (Apache-2.0) and Bootstrap Icons (MIT) are included; see
+`src/dirag/static/vendor/LICENSE.pdfjs`.

@@ -1,37 +1,36 @@
-[project]
-name = "ask-pdf"
-version = "0.1.0"
-description = "Local CLI for grounded, page-cited question-answering over folders of PDFs."
-license = { text = "MIT" }
-authors = [{ name = "Baris Arat", email = "aratbaris98@gmail.com" }]
-requires-python = ">=3.12"
-dependencies = [
-    "typer>=0.12",
-    "rich>=13",
-    "openai>=1.40",
-    # PDF parse, local CPU embeddings, vector store.
-    "pymupdf>=1.24",
-    "fastembed>=0.3",
-    "sqlite-vec>=0.1.6",
-]
-
-[project.scripts]
-ask = "ask.cli:app"
-
-[project.urls]
-Repository = "https://github.com/barisarat/ask-pdf"
-
-[dependency-groups]
-dev = [
-    "pytest>=8",
-]
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/ask"]
+[project]
+name = "dirag"
+version = "0.1.0"
+description = "Search a folder of PDF books, read the page each result comes from, and get answers quoted from the books."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+# Linux and Windows get the GPU build of onnxruntime with CUDA and cuDNN as pip
+# packages; it runs on the CPU when there is no NVIDIA GPU. macOS gets the CPU build.
+dependencies = [
+    "pymupdf",
+    "sqlite-vec",
+    "fastembed-gpu>=0.8; sys_platform == 'linux' or sys_platform == 'win32'",
+    "onnxruntime-gpu[cuda,cudnn]>=1.22; sys_platform == 'linux' or sys_platform == 'win32'",
+    "fastembed>=0.8; sys_platform == 'darwin'",
+]
+keywords = ["pdf", "books", "search", "rag", "bm25", "embeddings", "ollama"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Environment :: Web Environment",
+    "Topic :: Text Processing :: Indexing",
+]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
+[project.urls]
+Homepage = "https://github.com/barisarat/dirag"
+
+[project.scripts]
+dirag = "dirag.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dirag"]

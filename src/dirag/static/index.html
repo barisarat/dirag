@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dirag</title>
+<link rel="icon" href="/static/favicon.svg">
+<link rel="stylesheet" href="/static/app.css">
+</head><body>
+<nav id="sidebar">
+  <div id="side-head">
+    <div id="side-title">Library<span id="side-count"></span><button id="lib-open" class="ib" title="Library" data-icon="library"></button></div>
+    <label class="field" for="filter"><span data-icon="search"></span><input type="search" id="filter" placeholder="Filter"
+      autocomplete="off" spellcheck="false"></label>
+  </div>
+  <div id="side-progress" hidden><i></i></div>
+  <div id="book-list"></div>
+</nav>
+<div id="main">
+  <div id="topstrip">
+    <button id="nav-toggle" class="ib" title="Library" data-icon="panel"></button>
+    <div id="tabs"></div>
+  </div>
+  <div id="views">
+    <div class="view" id="view-home" hidden>
+      <div id="home-scroll"><main>
+        <h1 class="hh">Bookmarked</h1>
+        <div id="home"></div>
+      </main></div>
+    </div>
+    <div class="view" id="view-library" hidden>
+      <div class="scroller"><main>
+        <h1 class="hh">Library</h1>
+        <div class="card"><div class="body">
+          <div class="t path" id="lib-path"></div>
+          <div class="s" id="lib-counts"></div>
+          <div class="go" id="lib-change-row"><button class="act" id="lib-change"><span data-icon="folder"></span>Change</button></div>
+          <div id="picker" hidden>
+            <div class="pick-head"><button class="ib" id="pick-up" title="Up" data-icon="up"></button><span class="path" id="pick-path"></span></div>
+            <div id="pick-dirs"></div>
+            <div class="go"><button class="act" id="pick-use"><span data-icon="use"></span>Use this folder</button><span class="s" id="pick-pdfs"></span></div>
+          </div>
+        </div></div>
+        <div class="card"><div class="body">
+          <div class="t">Index</div>
+          <div class="s">Reads every page: minutes per hundred books on a GPU, hours on a CPU. Stopping keeps finished books.</div>
+          <div id="job-run" hidden>
+            <progress id="job-bar" max="1" value="0"></progress>
+            <div class="s" id="job-line"></div>
+          </div>
+          <div class="s" id="job-last"></div>
+          <div class="go">
+            <button class="act" id="job-update"><span data-icon="add"></span>Index new</button>
+            <button class="act" id="job-reindex"><span data-icon="reindex"></span>Reindex all</button>
+            <button class="act" id="job-stop" hidden><span data-icon="stop"></span>Stop</button>
+          </div>
+        </div></div>
+      </main></div>
+    </div>
+    <div class="view" id="view-search">
+      <div id="scroll"><main>
+        <div class="bar">
+          <div class="qwrap">
+            <label class="field" for="q"><span data-icon="search"></span><input type="search" id="q" placeholder="Search"
+              autofocus autocomplete="off" role="combobox" aria-controls="suggest" aria-autocomplete="list"></label>
+            <ul id="suggest" class="suggest" role="listbox" hidden></ul>
+          </div>
+          <select id="mode" class="pick" title="Retrieval">
+            <option value="hybrid">Hybrid</option><option value="lexical">Lexical</option><option value="semantic">Semantic</option>
+          </select>
+          <select id="rerank" class="pick" title="Rerank">
+            <option value="off">No rerank</option><option value="neural">Neural</option><option value="llm">LLM</option>
+          </select>
+          <button id="go" class="ib" title="Search (Enter)" data-icon="search"></button>
+          <button id="ask" class="ib" title="AI answer (Ctrl+Enter)" data-icon="ai" hidden></button>
+        </div>
+        <div class="bar-state">
+          <div class="state" id="state"></div>
+        </div>
+        <div id="busy" class="busy" hidden></div>
+        <div id="out" class="note"></div>
+      </main></div>
+    </div>
+  </div>
+</div>
+<script type="module" src="/static/app.js"></script>
+</body></html>
