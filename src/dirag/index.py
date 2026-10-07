@@ -253,11 +253,13 @@ def needs_work(conn, root, rel, action):
     return True, digest
 
 
-def index_book(conn, root, rel, action="update", digest=None, verbose=True):
+def index_book(conn, root, rel, action="update", digest=None, step=None):
     """Parse (or, for rechunk, reuse the cached pages), section, chunk, embed and store one book.
 
+    `step(name, n, of)` hears each page read ('read') and each batch embedded ('embed').
     Returns 'ok', 'rechunk' or 'no_text'.
     """
+    step = step or (lambda name, n, of: None)
     path = root / rel
     stat = path.stat()
     digest = digest or file_hash(path)
@@ -269,7 +271,12 @@ def index_book(conn, root, rel, action="update", digest=None, verbose=True):
         rows = section_rows(doc)
         pages = doc.page_count
         cached = load_pages(conn, existing["id"]) if (existing and action == "rechunk") else {}
-        blocks_by_page = cached or {i + 1: page_blocks(doc.load_page(i)) for i in range(pages)}
+        blocks_by_page = cached or {}
+        if not cached:
+            for i in range(pages):
+                blocks_by_page[i + 1] = page_blocks(doc.load_page(i))
+                jobs.check()
+                step("read", i + 1, pages)
     finally:
         doc.close()
 
@@ -319,8 +326,7 @@ def index_book(conn, root, rel, action="update", digest=None, verbose=True):
         conn.executemany("INSERT INTO vec_chunks (chunk_id, embedding) VALUES (?, ?)",
                          [(chunk_ids[start + offset], json.dumps(vector)) for offset, vector in enumerate(vectors)])
         jobs.check()
-        if verbose:
-            print(f"      embedded {min(start + batch, len(to_embed))}/{len(to_embed)}", end="\r", file=sys.stderr)
+        step("embed", min(start + batch, len(to_embed)), len(to_embed))
 
     conn.execute("UPDATE books SET sections=?, chunks=? WHERE id=?", (len(rows), len(passages), book_id))
     conn.commit()
@@ -381,9 +387,17 @@ def _run(root, db_path, action, limit, progress):
         for number, (rel, digest, size) in enumerate(todo, 1):
             jobs.check()
             print(f"  {number}/{len(todo)} {rel[:66]}", file=sys.stderr)
-            progress.write(current=rel)
+            progress.book(rel, size)
+            begun = time.monotonic()
+
+            def step(name, n, of):
+                if progress.step(name, n, of):
+                    print(f"      {'read' if name == 'read' else 'embedded'} {n}/{of} {'pages' if name == 'read' else 'passages'}"
+                          f"  {(time.monotonic() - begun) / 60:.1f} min", end="\r", file=sys.stderr)
+
             try:
-                counts[index_book(conn, root, rel, action, digest)] += 1
+                counts[index_book(conn, root, rel, action, digest, step)] += 1
+                print(file=sys.stderr)
             except KeyboardInterrupt:
                 conn.rollback()
                 raise

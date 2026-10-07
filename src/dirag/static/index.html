@@ -8,8 +8,8 @@
 <nav id="sidebar">
   <div id="side-head">
     <div id="side-title">Library<span id="side-count"></span><button id="lib-open" class="ib" title="Library" data-icon="library"></button></div>
-    <label class="field" for="filter"><span data-icon="search"></span><input type="search" id="filter" placeholder="Filter"
-      autocomplete="off" spellcheck="false"></label>
+    <div id="side-filter"><label class="field" for="filter"><span data-icon="search"></span><input type="search" id="filter"
+      placeholder="Filter" autocomplete="off" spellcheck="false"></label></div>
   </div>
   <div id="side-progress" hidden><i></i></div>
   <div id="book-list"></div>
@@ -45,10 +45,13 @@
           <div id="job-run" hidden>
             <progress id="job-bar" max="1" value="0"></progress>
             <div class="s" id="job-line"></div>
+            <div class="s" id="job-book"></div>
           </div>
           <div class="s" id="job-last"></div>
+          <div class="s" id="job-scan"></div>
           <div class="go">
-            <button class="act" id="job-update"><span data-icon="add"></span>Index new</button>
+            <button class="act" id="lib-scan"><span data-icon="search"></span>Scan</button>
+            <button class="act" id="job-update" hidden><span data-icon="add"></span>Index new</button>
             <button class="act" id="job-reindex"><span data-icon="reindex"></span>Reindex all</button>
             <button class="act" id="job-stop" hidden><span data-icon="stop"></span>Stop</button>
           </div>

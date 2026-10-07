@@ -1,3 +1,5 @@
+/* Two rows line up across the sidebar and the main pane: the title row with the tabs
+   (--row1) and the filter row with the reader bar (--row2). */
 /* One neutral palette with a single colour: the highlight box on a page. Dark mode follows the
    system unless data-theme on <html> says otherwise. */
 :root {
@@ -15,6 +17,7 @@
   --accent:#e9e9e9; --panel:#1c1c1c; --hl:#a9d5f5; --mark:#4a441f;
 }
 * { box-sizing:border-box; }
+:root { --row1:42px; --row2:44px; }
 body { margin:0; background:var(--bg); color:var(--fg);
        font:14px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
        display:flex; height:100vh; overflow:hidden; }
@@ -29,9 +32,12 @@ body { margin:0; background:var(--bg); color:var(--fg);
 #sidebar { width:280px; flex:none; background:var(--panel);
            border-right:1px solid var(--rule); overflow-y:auto; }
 body.nav-closed #sidebar { display:none; }
-#side-head { position:sticky; top:0; z-index:5; background:var(--panel);
-             padding:12px 14px 10px; border-bottom:1px solid var(--rule); }
-#side-title { display:flex; align-items:center; font-size:15px; font-weight:600; }
+#side-head { position:sticky; top:0; z-index:5; background:var(--panel); }
+#side-title { display:flex; align-items:center; height:var(--row1); padding:0 8px 0 14px;
+              border-bottom:1px solid var(--rule); font-size:15px; font-weight:600; }
+#side-filter { display:flex; align-items:center; height:var(--row2); padding:0 14px;
+               border-bottom:1px solid var(--rule); }
+#side-filter .field { flex:1; height:30px; }
 #side-count { margin-left:auto; color:var(--muted); font-size:12px; font-weight:400;
               font-variant-numeric:tabular-nums; }
 .field { display:flex; align-items:center; gap:8px; background:var(--bg);
@@ -40,9 +46,9 @@ body.nav-closed #sidebar { display:none; }
 .field:focus-within { border-color:var(--accent); }
 .field :focus, .field :focus-visible { outline:none; box-shadow:none; }
 .field svg { color:var(--muted); flex:none; }
-#side-head .field { margin-top:10px; }
+.field > span { display:flex; }
 #side-head input { flex:1; min-width:0; border:0; background:none; color:var(--fg);
-                   font:13px/1.5 inherit; padding:7px 0; }
+                   font:13px/1.5 inherit; padding:0; }
 #book-list { padding:6px 0 40px; }
 .bk { display:flex; align-items:flex-start; gap:4px; padding:2px 8px 2px 14px; }
 .bk:hover { background:var(--bg); }
@@ -84,14 +90,14 @@ input[type=search]::-webkit-search-cancel-button { filter:grayscale(1); }
 main { max-width:900px; margin:0 auto; padding:18px 14px 80px; }
 .note { color:var(--muted); }
 
-#topstrip { display:flex; align-items:stretch; flex:none; background:var(--panel);
+#topstrip { display:flex; align-items:stretch; flex:none; height:var(--row1); background:var(--panel);
             border-bottom:1px solid var(--rule); padding:0 6px; gap:4px; }
-#topstrip .ib { align-self:center; }
+#topstrip .ib { align-self:center; width:28px; height:28px; }
 #tabs { display:flex; gap:2px; align-items:stretch; flex:1; min-width:0;
         overflow-x:auto; scrollbar-width:none; }
 #tabs::-webkit-scrollbar { display:none; }
 .tab { display:flex; align-items:center; gap:7px; max-width:230px; flex:none;
-       padding:8px 10px; border:0; border-bottom:2px solid transparent;
+       padding:2px 10px 0; border:0; border-bottom:2px solid transparent;
        background:none; color:var(--muted); font:13px/1.3 inherit; cursor:pointer; }
 .tab:hover { color:var(--fg); }
 .tab[aria-selected=true] { color:var(--fg); border-bottom-color:var(--accent); }
@@ -101,23 +107,34 @@ main { max-width:900px; margin:0 auto; padding:18px 14px 80px; }
 .tab .x:hover { opacity:1; background:var(--bg); }
 #views { flex:1; min-height:0; position:relative; }
 .view { position:absolute; inset:0; display:flex; flex-direction:column; }
-.view[hidden] { display:none; }
+[hidden] { display:none !important; }
 
-.rbar { display:flex; align-items:center; gap:8px; flex:none; padding:6px 12px;
+.rbar { display:flex; align-items:center; gap:8px; flex:none; height:var(--row2); padding:0 12px;
         border-bottom:1px solid var(--rule); background:var(--panel);
         font-variant-numeric:tabular-nums; }
 .rbar .who { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
              color:var(--muted); font-size:12.5px; margin-right:auto; }
 .rbar input { width:4.5em; text-align:right; border:1px solid var(--rule); border-radius:6px;
-              background:var(--bg); color:var(--fg); font:13px/1 inherit; padding:6px 7px;
+              background:var(--bg); color:var(--fg); font:13px/1 inherit; height:30px; padding:0 7px;
               font-variant-numeric:tabular-nums; }
 .rbar .of { color:var(--muted); font-size:12.5px; min-width:3.4em; text-align:center; }
 .rbar .ib { width:28px; height:28px; }
-.rbar .sep { width:1px; align-self:stretch; margin:2px 4px; background:var(--rule); }
+.rbar .sep { width:1px; height:20px; margin:0 4px; background:var(--rule); }
 .pages { flex:1; overflow-y:auto; background:var(--panel); padding:14px 0 60px; }
-.leaf { margin:0 auto 14px; background:var(--bg); border:1px solid var(--rule);
-        border-radius:4px; position:relative; overflow:hidden; }
+.leaf { margin:0 auto; background:var(--bg); border:1px solid var(--rule); border-top:0;
+        position:relative; overflow:hidden; }
+.leaf:first-child { border-top:1px solid var(--rule); }
 .leaf canvas { display:block; width:100%; height:100%; }
+/* Text layer: the rules pdf.js's own viewer uses (pdf_viewer.css, textLayer). */
+.textLayer { position:absolute; inset:0; overflow:clip; opacity:1; line-height:1; text-align:initial;
+             text-size-adjust:none; forced-color-adjust:none; transform-origin:0 0; z-index:0; }
+.textLayer :is(span, br) { color:transparent; position:absolute; white-space:pre; cursor:text; transform-origin:0% 0%; }
+.textLayer > :not(.markedContent), .textLayer .markedContent span:not(.markedContent) { z-index:1; }
+.textLayer span.markedContent { top:0; height:0; }
+.textLayer ::selection { background:color-mix(in srgb, var(--accent) 30%, transparent); }
+.textLayer br::selection { background:transparent; }
+.textLayer .endOfContent { display:block; position:absolute; inset:100% 0 0; z-index:0; cursor:default; user-select:none; }
+.textLayer.selecting .endOfContent { top:0; }
 .leaf .num { position:absolute; right:6px; bottom:4px; color:var(--muted); font-size:11px; }
 .rload { padding:40px; text-align:center; color:var(--muted); }
 
@@ -140,7 +157,6 @@ main { max-width:900px; margin:0 auto; padding:18px 14px 80px; }
 .act:hover { border-color:var(--accent); color:var(--fg); }
 .act svg { flex:none; }
 .sheet { margin-top:9px; position:relative; width:100%; }
-.sheet[hidden] { display:none; }
 .sheet img { width:100%; border:1px solid var(--rule); border-radius:5px;
              display:block; background:var(--panel); }
 .box { position:absolute; background:var(--hl); mix-blend-mode:multiply;

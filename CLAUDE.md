@@ -74,9 +74,9 @@ src/dirag/
   in `pages` mean `--rechunk` never re-parses.
 - **One indexing job at a time**, recorded in `job.json` by the indexer itself,
   so the app shows and stops a run started from either place. Stop is a request
-  checked before each book and after each embedding batch; the book in progress
-  rolls back. Liveness is checked through /proc (not a zombie, still a dirag
-  indexer), so a crashed run reads as failed.
+  checked before each book, after each page read and after each embedding
+  batch; the book in progress rolls back. Liveness is checked through /proc
+  (not a zombie, still a dirag indexer), so a crashed run reads as failed.
 - **One index per library folder** (`indexes/<name>-<hash>.sqlite3`); switching
   folders never touches another folder's index.
 - **The folder picker is confined** to the browse root, and `DIRAG_LIBRARY`

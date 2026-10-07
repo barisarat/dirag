@@ -15,7 +15,8 @@ passage marked on it, or the whole book in the built-in reader at that page.
 - The AI answer quotes the books: a language model picks the passages and the
   words, dirag checks every quote against the text and shows it in the book's
   own words, marked on its page.
-- The reader remembers the page you stopped on in every book.
+- The reader remembers the page you stopped on in every book, and its text can
+  be selected and copied.
 - Everything runs locally. No account, no network after the first downloads.
 
 ## Start
@@ -25,8 +26,8 @@ uvx dirag
 ```
 
 That needs only [uv](https://docs.astral.sh/uv/). The browser opens on the app:
-choose the library folder (the folder button at the top of the shelf) and press
-**Index new**. Subfolders are included.
+choose the library folder (the folder button at the top of the shelf), press
+**Scan**, then **Index new**. Subfolders are included.
 
 dirag uses two things when they are there, with nothing to set:
 
@@ -52,10 +53,14 @@ than run it through uvx: `uv tool install dirag`, then `dirag`.
 ## Indexing
 
 Indexing is long by design: every page is parsed and every passage embedded.
-The library view shows progress, a time estimate and a stop button. Stopping
-keeps every finished book, and the next run continues from there. Search works
-on the finished books while a run is going. **Index new** adds new and changed
-PDFs and drops deleted ones; **Reindex all** parses and embeds everything again.
+**Scan** looks through the folder for PDFs that are new, changed or gone;
+**Index new** appears when it finds any, adds the new and changed PDFs and
+drops the deleted ones. **Reindex all** parses and embeds everything again.
+While a run is going the library view shows its progress and a time estimate,
+and for the current book the pages read or passages embedded and the minutes
+spent on it; **Stop** appears only then. Stopping keeps every finished book,
+and the next run continues from there. Search works on the finished books while
+a run is going.
 
 ## Search
 

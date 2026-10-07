@@ -11,11 +11,13 @@ from the command line, so the app shows progress for either and can stop either.
     total, done                 books to process, books processed
     bytes_total, bytes_done     the same in file bytes, for the time estimate
     current      the book being processed
+    step         where that book is: {name: read | embed, n, of, started}
+                 (pages read or passages embedded, of how many; when the book began)
     counts       {ok, rechunk, skip, no_text, error, removed}
     error        why a failed run failed
 
-Stopping sends SIGINT. The indexer stops at its next check (before each book and
-after each embedding batch), rolls back the book in progress and keeps every
+Stopping sends SIGINT. The indexer stops at its next check (before each book, after
+each page read and after each embedding batch), rolls back the book in progress and keeps every
 book already committed. A second SIGINT, or Ctrl-C twice, stops at once.
 SIGTERM is handled like SIGINT.
 """
@@ -79,9 +81,12 @@ def status():
     if job.get("state") == "running":
         if not _alive(job.get("pid") or 0):
             job.update(state="failed", error=job.get("error") or "the indexing process ended; see job.log")
-        elif job.get("bytes_done"):
-            elapsed = time.time() - job["started"]
-            job["eta"] = round(elapsed * (job["bytes_total"] - job["bytes_done"]) / job["bytes_done"])
+        else:
+            # Bytes done, plus the share of the current book already embedded.
+            step = job.get("step") or {}
+            done = job.get("bytes_done", 0) + (step.get("size", 0) * step["n"] / step["of"] if step.get("name") == "embed" and step.get("of") else 0)
+            if done:
+                job["eta"] = round((time.time() - job["started"]) * (job["bytes_total"] - done) / done)
     return job
 
 
@@ -113,17 +118,30 @@ def stop():
 
 
 class Progress:
-    """The indexer's side: writes the job record after every book."""
+    """The indexer's side: writes the job record after every book, and at most once a second within one."""
 
     def __init__(self, action, root):
         self.job = {"state": "running", "action": action, "library": str(root), "pid": os.getpid(),
                     "started": time.time(), "total": 0, "done": 0, "bytes_total": 0, "bytes_done": 0,
-                    "current": "", "counts": {}}
+                    "current": "", "step": {}, "counts": {}}
+        self._written = 0.0
         self.write()
 
     def write(self, **fields):
         self.job.update(fields)
         config.write_json(config.JOB, self.job)
+        self._written = time.monotonic()
+
+    def book(self, rel, size):
+        self.write(current=rel, step={"size": size, "started": time.time()})
+
+    def step(self, name, n, of):
+        """Record a step within the book; True when it was written."""
+        self.job["step"].update(name=name, n=n, of=of)
+        if n == of or time.monotonic() - self._written >= 1:
+            self.write()
+            return True
+        return False
 
     def finish(self, state, error=None):
-        self.write(state=state, current="", finished=time.time(), **({"error": error} if error else {}))
+        self.write(state=state, current="", step={}, finished=time.time(), **({"error": error} if error else {}))

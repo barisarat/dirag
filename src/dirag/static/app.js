@@ -53,14 +53,14 @@ function drawBooks(needle) {
   }).join("");
 }
 
-// byline . year . pages, skipping what a book does not have.
+// byline, year, pages, skipping what a book does not have.
 function sub(b) {
   const bits = [];
   const by = byline(b.authors);
   if (by) bits.push(escapeHtml(by));
   if (b.year) bits.push(b.year);
   if (b.pages) bits.push(b.pages + " pp");
-  return bits.join(" &middot; ");
+  return bits.join(", ");
 }
 
 function byline(authors) {
@@ -129,10 +129,45 @@ document.getElementById("home").addEventListener("click", (event) => {
 positions = await (await fetch("/api/positions")).json().catch(() => ({}));
 await loadMarks();
 
+// The open tabs (book, page, zoom) and the active one, kept in this browser so a reload restores them.
+const TABS = "dirag.tabs";
+const savedTabs = (() => { try { return JSON.parse(localStorage.getItem(TABS)) || {}; } catch (e) { return {}; } })();
+
+function saveTabs() {
+  const list = [...open.entries()].map(([id, st]) => ({ id, title: st.title, page: st.page, zoom: st.zoom }));
+  try { localStorage.setItem(TABS, JSON.stringify({ active, tabs: list })); } catch (e) {}
+}
+
+// Reopen the saved tabs in order, each while it is visible so it lays out at the pane's width.
+// A tab is reopened only if its id still names the same book (ids change when an index is rebuilt).
+// A click or key press while this runs keeps the tab the user chose.
+async function restoreTabs() {
+  let acted = false;
+  const act = () => { acted = true; };
+  document.addEventListener("pointerdown", act, { capture: true, once: true });
+  document.addEventListener("keydown", act, { capture: true, once: true });
+  for (const t of savedTabs.tabs || []) {
+    const meta = books.find((b) => String(b.id) === String(t.id));
+    if (!meta || meta.title !== t.title || open.has(String(t.id))) continue;
+    const keep = acted ? active : null;
+    await openBook(t.id, t.page, null, t.zoom).catch(() => {});
+    if (keep && active === String(t.id)) activate(keep);
+  }
+  document.removeEventListener("pointerdown", act, { capture: true });
+  document.removeEventListener("keydown", act, { capture: true });
+  const key = savedTabs.active;
+  if (!acted && key && (open.has(key) || document.getElementById("view-" + key))) activate(key);
+}
+
 function activate(key) {
   active = key;
+  saveTabs();
   for (const v of views.children) v.hidden = v.id !== "view-" + key;
   for (const t of tabs.children) t.setAttribute("aria-selected", String(t.dataset.key === key));
+  // A hidden view can lose its scroll offset; put a book back where it was.
+  const st = open.get(key);
+  const host = document.getElementById("pages-" + key);
+  if (st?.top != null && host && host.scrollTop !== st.top) host.scrollTop = st.top;
   if (key === "search") box.focus();
 }
 
@@ -162,7 +197,7 @@ function closeBook(id) {
 
 // Open a book as a tab at `page`, else at the page last read. An open book only jumps.
 // `rects` (PDF points) mark a passage or quote on that page and the view scrolls to it.
-async function openBook(id, page, rects) {
+async function openBook(id, page, rects, zoom) {
   id = String(id);
   if (open.has(id)) {
     activate(id);
@@ -170,6 +205,7 @@ async function openBook(id, page, rects) {
     return;
   }
   const meta = books.find((b) => String(b.id) === id) || { title: "", pages: 0 };
+  const start = Number(page) || positions[id] || 1;
   const view = document.createElement("div");
   view.className = "view";
   view.id = "view-" + id;
@@ -180,11 +216,11 @@ async function openBook(id, page, rects) {
     + '<span class="sep"></span>'
     + '<button class="ib" data-step="' + id + '|-1" title="Previous page">' + ICON.prev + '</button>'
     + '<button class="ib" data-step="' + id + '|1" title="Next page">' + ICON.next + '</button>'
-    + '<input type="text" inputmode="numeric" id="at-' + id + '" value="1" aria-label="Page">'
+    + '<input type="text" inputmode="numeric" id="at-' + id + '" value="' + start + '" aria-label="Page">'
     + '<span class="of" id="of-' + id + '"></span>'
     + '</div><div class="pages" id="pages-' + id + '"><div class="rload">...</div></div>';
   views.appendChild(view);
-  open.set(id, { title: meta.title, page: 1, zoom: 1, mark: page && rects?.length ? { page: Number(page), rects } : null });
+  open.set(id, { title: meta.title, page: start, zoom: zoom || 1, mark: page && rects?.length ? { page: Number(page), rects } : null });
   drawTabs();
   activate(id);
 
@@ -193,8 +229,9 @@ async function openBook(id, page, rects) {
   if (!st) { doc.destroy(); return; }
   st.doc = doc;
   document.getElementById("of-" + id).textContent = "/ " + doc.numPages;
+  document.getElementById("zoom-" + id).textContent = Math.round(st.zoom * 100) + "%";
   await layout(id);
-  goTo(id, Number(page) || positions[id] || 1, true, page ? rects : null);
+  goTo(id, start, true, page ? rects : null);
 }
 
 // One marked passage per open book, drawn as boxes over its page.
@@ -266,6 +303,7 @@ async function zoom(id, dir) {
   const next = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (at < 0 ? 1 : at) + dir))];
   if (next === st.zoom) return;
   st.zoom = next;
+  saveTabs();
   document.getElementById("zoom-" + id).textContent = Math.round(next * 100) + "%";
   await layout(id, st.page || 1);
 }
@@ -290,11 +328,27 @@ async function render(id, p) {
     canvasContext: canvas.getContext("2d", { alpha: false }),
     viewport: page.getViewport({ scale: st.scale * dpr }),
   }).promise;
+  // The page's text, invisible and placed over the image, so it can be selected and copied.
+  if (!canvas.isConnected) return;
+  const text = document.createElement("div");
+  text.className = "textLayer";
+  leaf.style.setProperty("--scale-factor", st.scale);
+  canvas.after(text);
+  await new pdfjs.TextLayer({ textContentSource: page.streamTextContent(), container: text, viewport: view }).render().catch(() => {});
+  const end = document.createElement("div");
+  end.className = "endOfContent";
+  text.append(end);
+  text.addEventListener("pointerdown", () => text.classList.add("selecting"));
 }
+
+document.addEventListener("pointerup", () => {
+  for (const el of document.querySelectorAll(".textLayer.selecting")) el.classList.remove("selecting");
+});
 
 function discard(leaf) {
   const canvas = leaf.querySelector("canvas");
   if (canvas) { canvas.width = canvas.height = 0; canvas.remove(); }
+  leaf.querySelector(".textLayer")?.remove();
 }
 
 // Scroll to page `p`, or to the first of `rects` on it with some room above.
@@ -306,18 +360,22 @@ function goTo(id, p, instant, rects) {
   const host = document.getElementById("pages-" + id);
   const y = rects?.length ? Math.max(0, Math.min(...rects.map((r) => r[1])) * st.scale - 80) : 0;
   host.scrollTo({ top: leaf.offsetTop - host.offsetTop + y, behavior: instant ? "auto" : "smooth" });
+  if (instant) onScroll(id);
 }
 
 // The current page is the topmost one on screen, saved 700 ms after scrolling stops.
+// A hidden view has no layout, so its scroll events are ignored.
 function onScroll(id) {
   const st = open.get(id);
   const host = document.getElementById("pages-" + id);
-  if (!st || !st.leaves || !host) return;
-  const top = host.scrollTop + 40;
+  if (!st || !st.leaves || !host || !host.clientHeight) return;
+  st.top = host.scrollTop;
+  const top = host.offsetTop + host.scrollTop + 40;
   let page = 1;
   for (const leaf of st.leaves) { if (leaf.offsetTop <= top) page = Number(leaf.dataset.page); else break; }
   if (page === st.page) return;
   st.page = page;
+  saveTabs();
   const at = document.getElementById("at-" + id);
   if (at) at.value = page;
   clearTimeout(st.save);
@@ -349,37 +407,50 @@ let lib = {};
 let pickAt = null;
 let polling = null;
 
-async function loadLibrary() {
-  lib = await (await fetch("/api/library")).json().catch(() => ({}));
+async function loadLibrary(scan) {
+  lib = await (await fetch("/api/library" + (scan ? "?scan=1" : ""))).json().catch(() => ({}));
   $("lib-path").textContent = lib.path || "No folder";
   const bits = [];
   if (lib.books != null) bits.push(lib.books + " books");
   if (lib.no_text) bits.push(lib.no_text + " without text");
-  if (lib.new) bits.push(lib.new + " new");
-  if (lib.gone) bits.push(lib.gone + " gone");
-  $("lib-counts").innerHTML = bits.join(" &middot; ");
+  $("lib-counts").innerHTML = bits.join(", ");
+  const found = [];
+  if (lib.new) found.push(lib.new + " new");
+  if (lib.changed) found.push(lib.changed + " changed");
+  if (lib.gone) found.push(lib.gone + " gone");
+  $("job-scan").innerHTML = lib.new == null ? "" : "Scan: " + (found.join(", ") || "up to date");
   $("lib-change-row").hidden = !!lib.fixed;
   const job = await (await fetch("/api/job")).json().catch(() => ({}));
   drawJob(job);
 }
 
+const minutes = (s) => s < 60 ? "<1 min" : Math.round(s / 60) + " min";
+
 function drawJob(job) {
   const run = job.state === "running";
-  const frac = job.bytes_total ? job.bytes_done / job.bytes_total : 0;
+  const step = job.step || {};
+  const inBook = step.name === "embed" && step.of ? (step.size || 0) * step.n / step.of : 0;
+  const frac = job.bytes_total ? (job.bytes_done + inBook) / job.bytes_total : 0;
   $("job-run").hidden = $("job-stop").hidden = !run;
-  $("job-update").hidden = $("job-reindex").hidden = run;
-  $("job-update").disabled = $("job-reindex").disabled = !lib.path;
+  $("lib-scan").hidden = $("job-reindex").hidden = run;
+  $("job-update").hidden = run || !(lib.new || lib.changed || lib.gone);
+  $("lib-scan").disabled = $("job-update").disabled = $("job-reindex").disabled = !lib.path;
   $("lib-change").disabled = run;
   $("job-bar").value = frac;
   $("side-progress").hidden = !run;
   $("side-progress").firstElementChild.style.width = (100 * frac) + "%";
   if (run) {
     const bits = [job.done + " / " + (job.total || "-")];
-    if (job.eta != null) bits.push(job.eta < 60 ? "<1 min" : Math.round(job.eta / 60) + " min");
-    if (job.current) bits.push(job.current);
-    $("job-line").innerHTML = bits.map(escapeHtml).join(" &middot; ");
+    if (job.eta != null) bits.push(minutes(job.eta) + " left");
+    $("job-line").innerHTML = bits.map(escapeHtml).join(", ");
+    const book = [];
+    if (job.current) book.push(job.current);
+    if (step.name) book.push((step.name === "read" ? "pages " : "embedded ") + step.n + " / " + step.of);
+    if (step.started) book.push(minutes(Date.now() / 1000 - step.started));
+    $("job-book").innerHTML = book.map(escapeHtml).join(", ");
   }
   $("job-last").textContent = run ? "" : lastRun(job);
+  $("job-scan").hidden = run;
   if (run && !polling) polling = setInterval(poll, 1500);
   if (!run && polling) { clearInterval(polling); polling = null; refresh(); }
 }
@@ -416,6 +487,11 @@ async function startJob(action) {
 }
 
 $("lib-open").addEventListener("click", () => { activate("library"); loadLibrary(); });
+$("lib-scan").addEventListener("click", async () => {
+  $("lib-scan").disabled = true;
+  $("job-scan").textContent = "Scanning";
+  await loadLibrary(true);
+});
 $("job-update").addEventListener("click", () => startJob("update"));
 $("job-reindex").addEventListener("click", () => { if (confirm("Reindex every book?")) startJob("reindex"); });
 $("job-stop").addEventListener("click", async () => drawJob(await (await post("/api/job/stop")).json()));
@@ -596,13 +672,13 @@ async function run(ask) {
   const data = await res.json();
   dpi = data.dpi || dpi;
   if (ask) {
-    state.innerHTML = escapeHtml(label) + " &middot; " + data.answer.quotes.length + " quotes &middot; " + took(data.ms);
+    state.innerHTML = escapeHtml(label) + ", " + data.answer.quotes.length + " quotes, " + took(data.ms);
     out.className = "";
     out.innerHTML = renderAnswer(data.answer);
     return;
   }
   const seen = new Set(data.results.map((r) => r.book_id));
-  state.innerHTML = escapeHtml(label) + " &middot; " + data.results.length + " in " + seen.size + " books &middot; " + took(data.ms);
+  state.innerHTML = escapeHtml(label) + ", " + data.results.length + " in " + seen.size + " books, " + took(data.ms);
   if (!data.results.length) {
     out.className = "note";
     out.textContent = "No matches";
@@ -694,3 +770,4 @@ drawTabs();
 await loadBooks();
 await loadLibrary();
 if (!books.length) activate("library");
+else await restoreTabs();

@@ -19,7 +19,8 @@ app.css); everything else is JSON or a file.
     POST /api/bookmark?id=       {"on": bool}
     GET  /page?chunk=            PNG of a passage's page
     GET  /book?id=               the PDF, for the in-app reader
-    GET  /api/library            the folder, whether it is fixed, and book counts
+    GET  /api/library?scan=      the folder, whether it is fixed, and book counts;
+                                 with scan, also PDFs new, changed and gone
     POST /api/library            {"path": folder} choose the library folder
     GET  /api/dirs?path=         subfolders of a folder under the browse root
     GET  /api/job                the indexing job record (see jobs.py)
@@ -314,20 +315,29 @@ class Handler(BaseHTTPRequestHandler):
                 pass
 
     def library(self, params):
-        """The folder and its counts: indexed books, books without text, PDFs not yet indexed, and gone."""
+        """The folder and its indexed counts. With ?scan=1, also the PDFs that are new, changed or gone."""
         info = {"path": str(self.root) if self.root else None, "fixed": config.FIXED, "browse": str(config.BROWSE_ROOT)}
         if self.root is None or not self.root.is_dir():
             return self._json(info)
-        on_disk = set(index.find_pdfs(self.root))
         conn = self._db()
         known = {}
         if conn is not None:
             try:
-                known = {row["path"]: row["status"] for row in conn.execute("SELECT path, status FROM books")}
+                known = {row["path"]: row for row in conn.execute("SELECT path, status, size, mtime FROM books")}
             finally:
                 conn.close()
-        info.update(books=sum(1 for s in known.values() if s == "ok"), no_text=sum(1 for s in known.values() if s == "no_text"),
-                    new=len(on_disk - known.keys()), gone=len(known.keys() - on_disk))
+        info.update(books=sum(1 for r in known.values() if r["status"] == "ok"),
+                    no_text=sum(1 for r in known.values() if r["status"] == "no_text"))
+        if params.get("scan"):
+            on_disk = set(index.find_pdfs(self.root))
+            changed = 0
+            for rel in on_disk & known.keys():
+                try:
+                    stat = (self.root / rel).stat()
+                except OSError:
+                    continue
+                changed += (known[rel]["size"], known[rel]["mtime"]) != (stat.st_size, stat.st_mtime)
+            info.update(new=len(on_disk - known.keys()), changed=changed, gone=len(known.keys() - on_disk))
         self._json(info)
 
     def _browsable(self, value):
